@@ -55,6 +55,7 @@ impl Interpreter {
                     return;
                 }
                 0x6 => self.handle_load_register(second_nibble as usize, second_byte as u16),
+                0x7 => self.handle_add_register_immediate(second_nibble as usize, second_byte as u16),
                 0xA => self.handle_load_immediate(bottom_tribble),
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
 
@@ -83,6 +84,14 @@ impl Interpreter {
     /// The interpreter puts the value kk into register Vx.
     fn handle_load_register(&mut self, x: usize, k: u16) {
         self.registers.vx[x] = k;
+    }
+
+    /// 7xkk - ADD Vx, byte
+    /// Set Vx = Vx + kk.
+    ///
+    /// Adds the value kk to the value of register Vx, then stores the result in Vx.
+    fn handle_add_register_immediate(&mut self, x: usize, k: u16) {
+        self.registers.vx[x] += k;
     }
 
     /// Annn - LD I, addr
@@ -168,6 +177,17 @@ mod tests {
         interpreter.step();
 
         assert_eq!(interpreter.registers.vx[1], 0x23);
+    }
+
+    #[test]
+    fn test_handle_add_register_immediate() {
+        let rom: &[u8] = &[0x73, 0x21, 0x73, 0x10];
+        let mut interpreter = Interpreter::with_rom(rom);
+
+        interpreter.step();
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.vx[3], 0x31);
     }
 
     #[test]
