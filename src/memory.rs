@@ -1,8 +1,8 @@
-const START_ROM: usize = 0x200;
+pub const START_ROM: usize = 0x200;
 const ROM_SIZE: usize = 4096 - START_ROM;
 
 #[derive(Debug)]
-pub(crate) struct Memory([u8; 4096]);
+pub(crate) struct Memory(pub [u8; 4096]);
 
 impl Memory {
     pub fn new() -> Self {
@@ -31,7 +31,7 @@ mod tests {
     impl quickcheck::Arbitrary for RomFixture {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             let mut rng = StdRng::seed_from_u64(u64::arbitrary(g));
-            
+
             Faker.fake_with_rng(&mut rng)
         }
     }
@@ -45,6 +45,4 @@ mod tests {
 
         assert_eq!(memory.0[START_ROM..START_ROM + num_bytes], rom.bytes);
     }
-
-
 }

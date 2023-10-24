@@ -1,3 +1,4 @@
+pub mod display;
 pub mod interpreter;
 mod memory;
 mod registers;
