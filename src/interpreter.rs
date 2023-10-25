@@ -59,8 +59,11 @@ impl Interpreter {
                 0x5 if fourth_nibble == 0 => {
                     self.handle_skip_if_equal_register(second_nibble as usize, third_nibble as usize)
                 }
-                0x6 => self.handle_load_register(second_nibble as usize, second_byte as u16),
+                0x6 => self.handle_load_register_immediate(second_nibble as usize, second_byte as u16),
                 0x7 => self.handle_add_register_immediate(second_nibble as usize, second_byte as u16),
+                0x8 if fourth_nibble == 0 => {
+                    self.handle_load_register_register(second_nibble as usize, third_nibble as usize)
+                }
                 0xA => self.handle_load_immediate(bottom_tribble),
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
 
@@ -117,7 +120,7 @@ impl Interpreter {
     /// Set Vx = kk.
     ///
     /// The interpreter puts the value kk into register Vx.
-    fn handle_load_register(&mut self, x: usize, k: u16) {
+    fn handle_load_register_immediate(&mut self, x: usize, k: u16) {
         self.registers.vx[x] = k;
     }
 
@@ -127,6 +130,14 @@ impl Interpreter {
     /// Adds the value kk to the value of register Vx, then stores the result in Vx.
     fn handle_add_register_immediate(&mut self, x: usize, k: u16) {
         self.registers.vx[x] += k;
+    }
+
+    /// 8xy0 - LD Vx, Vy
+    /// Set Vx = Vy.
+    ///
+    /// Stores the value of register Vy in register Vx.
+    fn handle_load_register_register(&mut self, x: usize, y: usize) {
+        self.registers.vx[x] = self.registers.vx[y];
     }
 
     /// Annn - LD I, addr
@@ -273,7 +284,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_load_register() {
+    fn test_handle_load_register_immediate() {
         let rom: &[u8] = &[0x61, 0x23];
         let mut interpreter = Interpreter::with_rom(rom);
 
@@ -291,6 +302,18 @@ mod tests {
         interpreter.step();
 
         assert_eq!(interpreter.registers.vx[3], 0x31);
+    }
+
+    #[test]
+    fn test_handle_load_register_register() {
+        let rom: &[u8] = &[0x8A, 0xC0];
+        let mut interpreter = Interpreter::with_rom(rom);
+
+        interpreter.registers.vx[0xC] = 0x23;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.vx[0xa], 0x23);
     }
 
     #[test]
