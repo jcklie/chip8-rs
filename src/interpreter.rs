@@ -54,17 +54,13 @@ impl Interpreter {
                     self.handle_jump(bottom_tribble);
                     return;
                 }
-                0x3 => {
-                    self.handle_skip_if_equal_immediate(second_nibble as usize, second_byte as u16)
+                0x3 => self.handle_skip_if_equal_immediate(second_nibble as usize, second_byte as u16),
+                0x4 => self.handle_skip_if_not_equal_immediate(second_nibble as usize, second_byte as u16),
+                0x5 if fourth_nibble == 0 => {
+                    self.handle_skip_if_equal_register(second_nibble as usize, third_nibble as usize)
                 }
-                0x4 => self
-                    .handle_skip_if_not_equal_immediate(second_nibble as usize, second_byte as u16),
-                0x5 if fourth_nibble == 0 => self
-                    .handle_skip_if_equal_register(second_nibble as usize, third_nibble as usize),
                 0x6 => self.handle_load_register(second_nibble as usize, second_byte as u16),
-                0x7 => {
-                    self.handle_add_register_immediate(second_nibble as usize, second_byte as u16)
-                }
+                0x7 => self.handle_add_register_immediate(second_nibble as usize, second_byte as u16),
                 0xA => self.handle_load_immediate(bottom_tribble),
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
 
