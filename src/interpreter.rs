@@ -54,12 +54,21 @@ impl Interpreter {
                     self.handle_jump(bottom_tribble);
                     return;
                 }
+                0x3 => {
+                    self.handle_skip_if_equal_immediate(second_nibble as usize, second_byte as u16)
+                }
+                0x4 => self
+                    .handle_skip_if_not_equal_immediate(second_nibble as usize, second_byte as u16),
+                0x5 if fourth_nibble == 0 => self
+                    .handle_skip_if_equal_register(second_nibble as usize, third_nibble as usize),
                 0x6 => self.handle_load_register(second_nibble as usize, second_byte as u16),
-                0x7 => self.handle_add_register_immediate(second_nibble as usize, second_byte as u16),
+                0x7 => {
+                    self.handle_add_register_immediate(second_nibble as usize, second_byte as u16)
+                }
                 0xA => self.handle_load_immediate(bottom_tribble),
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
 
-                _ => panic!("Unknown byte: {:#02x}", cur),
+                _ => panic!("Unknown instruction: {:#02x}", cur),
             }
         }
 
@@ -76,6 +85,36 @@ impl Interpreter {
     /// The interpreter sets the program counter to nnn.
     fn handle_jump(&mut self, n: u16) {
         self.registers.pc = n;
+    }
+
+    /// 3xkk - SE Vx, byte
+    /// Skip next instruction if Vx = kk.
+    ///
+    /// The interpreter compares register Vx to kk, and if they are equal, increments the program counter by 2.
+    fn handle_skip_if_equal_immediate(&mut self, x: usize, k: u16) {
+        if self.registers.vx[x] == k {
+            self.registers.pc += 2;
+        }
+    }
+
+    /// 4xkk - SNE Vx, byte
+    /// Skip next instruction if Vx != kk.
+    ///
+    /// The interpreter compares register Vx to kk, and if they are not equal, increments the program counter by 2.
+    fn handle_skip_if_not_equal_immediate(&mut self, x: usize, k: u16) {
+        if self.registers.vx[x] != k {
+            self.registers.pc += 2;
+        }
+    }
+
+    /// 5xy0 - SE Vx, Vy
+    /// Skip next instruction if Vx = Vy.
+    ///
+    /// The interpreter compares register Vx to register Vy, and if they are equal, increments the program counter by 2.
+    fn handle_skip_if_equal_register(&mut self, x: usize, y: usize) {
+        if self.registers.vx[x] == self.registers.vx[y] {
+            self.registers.pc += 2;
+        }
     }
 
     /// 6xkk - LD Vx, byte
@@ -167,6 +206,74 @@ mod tests {
         interpreter.step();
 
         assert_eq!(interpreter.registers.pc, 0x789);
+    }
+
+    #[test]
+    fn test_handle_skip_if_equal_immediate_equal() {
+        let rom: &[u8] = &[0x33, 0x42];
+        let mut interpreter = Interpreter::with_rom(rom);
+        interpreter.registers.vx[3] = 0x42;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.pc, 0x204);
+    }
+
+    #[test]
+    fn test_handle_skip_if_equal_immediate_unequal() {
+        let rom: &[u8] = &[0x33, 0x42];
+        let mut interpreter = Interpreter::with_rom(rom);
+        interpreter.registers.vx[3] = 0x43;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.pc, 0x202);
+    }
+
+    #[test]
+    fn test_handle_skip_if_not_equal_immediate_equal() {
+        let rom: &[u8] = &[0x43, 0x42];
+        let mut interpreter = Interpreter::with_rom(rom);
+        interpreter.registers.vx[3] = 0x42;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.pc, 0x202);
+    }
+
+    #[test]
+    fn test_handle_skip_if_not_equal_immediate_unequal() {
+        let rom: &[u8] = &[0x43, 0x42];
+        let mut interpreter = Interpreter::with_rom(rom);
+        interpreter.registers.vx[3] = 0x43;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.pc, 0x204);
+    }
+
+    #[test]
+    fn test_handle_skip_if_not_equal_register_equal() {
+        let rom: &[u8] = &[0x53, 0x40];
+        let mut interpreter = Interpreter::with_rom(rom);
+        interpreter.registers.vx[3] = 0x42;
+        interpreter.registers.vx[4] = 0x42;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.pc, 0x204);
+    }
+
+    #[test]
+    fn test_handle_skip_if_not_equal_register_unequal() {
+        let rom: &[u8] = &[0x53, 0x40];
+        let mut interpreter = Interpreter::with_rom(rom);
+        interpreter.registers.vx[3] = 0x42;
+        interpreter.registers.vx[4] = 0x23;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.pc, 0x202);
     }
 
     #[test]
