@@ -82,6 +82,9 @@ impl Interpreter {
                 0x8 if fourth_nibble == 6 => {
                     self.handle_shift_right_register_one(second_nibble as usize, third_nibble as usize)
                 }
+                0x8 if fourth_nibble == 7 => {
+                    self.handle_sub_register_register_negated(second_nibble as usize, third_nibble as usize)
+                }
                 0x8 if fourth_nibble == 0xE => {
                     self.handle_shift_left_register_one(second_nibble as usize, third_nibble as usize)
                 }
@@ -237,6 +240,25 @@ impl Interpreter {
         self.registers.vx[x] = result;
 
         if underflow {
+            self.registers.vx[0xF] = 1;
+        } else {
+            self.registers.vx[0xF] = 0;
+        }
+    }
+
+    /// 8xy7 - SUBN Vx, Vy
+    /// Set Vx = Vy - Vx, set VF = NOT borrow.
+    ///
+    /// If Vy > Vx, then VF is set to 1, otherwise 0. Then Vx is subtracted from Vy, and the results stored in Vx.
+    fn handle_sub_register_register_negated(&mut self, x: usize, y: usize) {
+        let a = self.registers.vx[x];
+        let b = self.registers.vx[y];
+
+        let result = b.wrapping_sub(a);
+
+        self.registers.vx[x] = result;
+
+        if b > a {
             self.registers.vx[0xF] = 1;
         } else {
             self.registers.vx[0xF] = 0;
@@ -485,6 +507,22 @@ mod tests {
         let rom: &[u8] = &[0x80 | x, (y << 4) | 0x6];
         let mut interpreter = Interpreter::with_rom(rom);
         interpreter.registers.vx[x as usize] = vx;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.vx[x as usize], result, "Result wrong");
+        assert_eq!(interpreter.registers.vx[0xF], underflow, "Underflow wrong");
+    }
+
+    #[test_case(0xD, 0x4, 0x13, 0x15, 0x2, 1 ; "SUBN: vy - vx - No Underflow")]
+    #[test_case(0xC , 0x2, 50, 25, 0b1110_0111, 0; "SUBN: vy - vx - Underflow")]
+    #[test_case(0xF, 0xE, 7, 5, 0, 0 ; "SUBN: vy - vx - Target VF - Underflow")]
+    #[test_case(0xF, 0x0, 5, 7, 1, 1 ; "SUBN: vy - vx - Target VF - No Underflow")]
+    fn test_handle_sub_register_register_negated(x: u8, y: u8, vx: u8, vy: u8, result: u8, underflow: u8) {
+        let rom: &[u8] = &[0x80 | x, (y << 4) | 0x7];
+        let mut interpreter = Interpreter::with_rom(rom);
+        interpreter.registers.vx[x as usize] = vx;
+        interpreter.registers.vx[y as usize] = vy;
 
         interpreter.step();
 
