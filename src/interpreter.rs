@@ -87,6 +87,9 @@ impl Interpreter {
                 }
                 0x8 if fourth_nibble == 0xE => {
                     self.handle_shift_left_register_one(second_nibble as usize, third_nibble as usize)
+                },
+                0x9 if fourth_nibble == 0 => {
+                    self.handle_skip_if_not_equal_register(second_nibble as usize, third_nibble as usize)
                 }
                 0xA => self.handle_load_immediate(bottom_tribble),
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
@@ -281,6 +284,16 @@ impl Interpreter {
             self.registers.vx[0xF] = 1;
         } else {
             self.registers.vx[0xF] = 0;
+        }
+    }
+
+    /// 9xy0 - SNE Vx, Vy
+    /// Skip next instruction if Vx != Vy.
+    ///
+    /// The values of Vx and Vy are compared, and if they are not equal, the program counter is increased by 2.
+    fn handle_skip_if_not_equal_register(&mut self, x: usize, y: usize) {
+        if self.registers.vx[x] != self.registers.vx[y] {
+            self.registers.pc += 2;
         }
     }
 
@@ -543,6 +556,19 @@ mod tests {
 
         assert_eq!(interpreter.registers.vx[x as usize], result, "Result wrong");
         assert_eq!(interpreter.registers.vx[0xF], overflow, "Overflow wrong");
+    }
+
+    #[test_case(0xA , 0x0, 0x18, 0x18, 0x202; "SNE: vx equals vy")]
+    #[test_case(0x7, 0x5, 1, 0x55, 0x204 ; "SNE: vx does not equal vy")]
+    fn test_handle_skip_if_not_equal_register(x: u8, y: u8, vx: u8, vy: u8, pc: u16) {
+        let rom: &[u8] = &[0x90 | x, y << 4];
+        let mut interpreter = Interpreter::with_rom(rom);
+        interpreter.registers.vx[x as usize] = vx;
+        interpreter.registers.vx[y as usize] = vy;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.pc, pc);
     }
 
     #[test]
