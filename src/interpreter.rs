@@ -79,6 +79,12 @@ impl Interpreter {
                 0x8 if fourth_nibble == 5 => {
                     self.handle_sub_register_register(second_nibble as usize, third_nibble as usize)
                 }
+                0x8 if fourth_nibble == 6 => {
+                    self.handle_shift_right_register_one(second_nibble as usize, third_nibble as usize)
+                }
+                0x8 if fourth_nibble == 0xE => {
+                    self.handle_shift_left_register_one(second_nibble as usize, third_nibble as usize)
+                }
                 0xA => self.handle_load_immediate(bottom_tribble),
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
 
@@ -212,6 +218,44 @@ impl Interpreter {
         self.registers.vx[x] = result;
 
         if a > b {
+            self.registers.vx[0xF] = 1;
+        } else {
+            self.registers.vx[0xF] = 0;
+        }
+    }
+
+    /// 8xy6 - SHR Vx {, Vy}
+    /// Set Vx = Vx SHR 1.
+    ///
+    /// If the least-significant bit of Vx is 1, then VF is set to 1, otherwise 0. Then Vx is divided by 2.
+    fn handle_shift_right_register_one(&mut self, x: usize, _y: usize) {
+        let a = self.registers.vx[x];
+
+        let underflow = a & 1 == 1;
+        let result = a >> 1;
+
+        self.registers.vx[x] = result;
+
+        if underflow {
+            self.registers.vx[0xF] = 1;
+        } else {
+            self.registers.vx[0xF] = 0;
+        }
+    }
+
+    /// 8xyE - SHL Vx {, Vy}
+    /// Set Vx = Vx SHL 1.
+    ///
+    /// If the most-significant bit of Vx is 1, then VF is set to 1, otherwise to 0. Then Vx is multiplied by 2.
+    fn handle_shift_left_register_one(&mut self, x: usize, _y: usize) {
+        let a = self.registers.vx[x];
+
+        let overflow = a & 0b1000_0000 > 1;
+        let result = a << 1;
+
+        self.registers.vx[x] = result;
+
+        if overflow {
             self.registers.vx[0xF] = 1;
         } else {
             self.registers.vx[0xF] = 0;
@@ -431,6 +475,36 @@ mod tests {
 
         assert_eq!(interpreter.registers.vx[x as usize], result, "Result wrong");
         assert_eq!(interpreter.registers.vx[0xF], underflow, "Underflow wrong");
+    }
+
+    #[test_case(0x0 , 0x2, 8, 4, 0; "SHR: vx, {vy} - No Underflow")]
+    #[test_case(0xE, 0xA, 0b10110011, 0b01011001, 1 ; "SHR: vx, {vy} - Underflow")]
+    #[test_case(0xF, 0x2, 0b101, 1, 1 ; "SHR: vx, {vy} - Target VF - Underflow")]
+    #[test_case(0xF, 0x3, 0b110, 0, 0 ; "SHR: vx, {vy} - Target VF - No Underflow")]
+    fn test_handle_shift_right_register_one(x: u8, y: u8, vx: u8, result: u8, underflow: u8) {
+        let rom: &[u8] = &[0x80 | x, (y << 4) | 0x6];
+        let mut interpreter = Interpreter::with_rom(rom);
+        interpreter.registers.vx[x as usize] = vx;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.vx[x as usize], result, "Result wrong");
+        assert_eq!(interpreter.registers.vx[0xF], underflow, "Underflow wrong");
+    }
+
+    #[test_case(0x5 , 0x3, 8, 16, 0; "SHL: vx, {vy} - No Overflow")]
+    #[test_case(0xA, 0xF, 0b1011_0011, 0b0110_0110, 1 ; "SHL: vx, {vy} - Overflow")]
+    #[test_case(0xF, 0xA, 0xFE, 1, 1 ; "SHL: vx, {vy} - Target VF - Overflow")]
+    #[test_case(0xF, 0x7, 0b110, 0, 0 ; "SHL: vx, {vy} - Target VF - No Overflow")]
+    fn test_handle_shift_left_register_one(x: u8, y: u8, vx: u8, result: u8, overflow: u8) {
+        let rom: &[u8] = &[0x80 | x, (y << 4) | 0xE];
+        let mut interpreter = Interpreter::with_rom(rom);
+        interpreter.registers.vx[x as usize] = vx;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.vx[x as usize], result, "Result wrong");
+        assert_eq!(interpreter.registers.vx[0xF], overflow, "Overflow wrong");
     }
 
     #[test]
