@@ -54,15 +54,30 @@ impl Interpreter {
                     self.handle_jump(bottom_tribble);
                     return;
                 }
-                0x3 => self.handle_skip_if_equal_immediate(second_nibble as usize, second_byte as u16),
-                0x4 => self.handle_skip_if_not_equal_immediate(second_nibble as usize, second_byte as u16),
+                0x3 => self.handle_skip_if_equal_immediate(second_nibble as usize, second_byte),
+                0x4 => self.handle_skip_if_not_equal_immediate(second_nibble as usize, second_byte),
                 0x5 if fourth_nibble == 0 => {
                     self.handle_skip_if_equal_register(second_nibble as usize, third_nibble as usize)
                 }
-                0x6 => self.handle_load_register_immediate(second_nibble as usize, second_byte as u16),
-                0x7 => self.handle_add_register_immediate(second_nibble as usize, second_byte as u16),
+                0x6 => self.handle_load_register_immediate(second_nibble as usize, second_byte),
+                0x7 => self.handle_add_register_immediate(second_nibble as usize, second_byte),
                 0x8 if fourth_nibble == 0 => {
                     self.handle_load_register_register(second_nibble as usize, third_nibble as usize)
+                }
+                0x8 if fourth_nibble == 1 => {
+                    self.handle_or_register_register(second_nibble as usize, third_nibble as usize)
+                }
+                0x8 if fourth_nibble == 2 => {
+                    self.handle_and_register_register(second_nibble as usize, third_nibble as usize)
+                }
+                0x8 if fourth_nibble == 3 => {
+                    self.handle_xor_register_register(second_nibble as usize, third_nibble as usize)
+                }
+                0x8 if fourth_nibble == 4 => {
+                    self.handle_add_register_register(second_nibble as usize, third_nibble as usize)
+                }
+                0x8 if fourth_nibble == 5 => {
+                    self.handle_sub_register_register(second_nibble as usize, third_nibble as usize)
                 }
                 0xA => self.handle_load_immediate(bottom_tribble),
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
@@ -90,7 +105,7 @@ impl Interpreter {
     /// Skip next instruction if Vx = kk.
     ///
     /// The interpreter compares register Vx to kk, and if they are equal, increments the program counter by 2.
-    fn handle_skip_if_equal_immediate(&mut self, x: usize, k: u16) {
+    fn handle_skip_if_equal_immediate(&mut self, x: usize, k: u8) {
         if self.registers.vx[x] == k {
             self.registers.pc += 2;
         }
@@ -100,7 +115,7 @@ impl Interpreter {
     /// Skip next instruction if Vx != kk.
     ///
     /// The interpreter compares register Vx to kk, and if they are not equal, increments the program counter by 2.
-    fn handle_skip_if_not_equal_immediate(&mut self, x: usize, k: u16) {
+    fn handle_skip_if_not_equal_immediate(&mut self, x: usize, k: u8) {
         if self.registers.vx[x] != k {
             self.registers.pc += 2;
         }
@@ -120,7 +135,7 @@ impl Interpreter {
     /// Set Vx = kk.
     ///
     /// The interpreter puts the value kk into register Vx.
-    fn handle_load_register_immediate(&mut self, x: usize, k: u16) {
+    fn handle_load_register_immediate(&mut self, x: usize, k: u8) {
         self.registers.vx[x] = k;
     }
 
@@ -128,7 +143,7 @@ impl Interpreter {
     /// Set Vx = Vx + kk.
     ///
     /// Adds the value kk to the value of register Vx, then stores the result in Vx.
-    fn handle_add_register_immediate(&mut self, x: usize, k: u16) {
+    fn handle_add_register_immediate(&mut self, x: usize, k: u8) {
         self.registers.vx[x] += k;
     }
 
@@ -138,6 +153,65 @@ impl Interpreter {
     /// Stores the value of register Vy in register Vx.
     fn handle_load_register_register(&mut self, x: usize, y: usize) {
         self.registers.vx[x] = self.registers.vx[y];
+    }
+
+    /// 8xy1 - OR Vx, Vy
+    /// Set Vx = Vx OR Vy.
+    ///
+    /// Performs a bitwise OR on the values of Vx and Vy, then stores the result in Vx.
+    fn handle_or_register_register(&mut self, x: usize, y: usize) {
+        self.registers.vx[x] |= self.registers.vx[y];
+    }
+
+    /// 8xy2 - AND Vx, Vy
+    /// Set Vx = Vx AND Vy.
+    ///
+    /// Performs a bitwise AND on the values of Vx and Vy, then stores the result in Vx.
+    fn handle_and_register_register(&mut self, x: usize, y: usize) {
+        self.registers.vx[x] &= self.registers.vx[y];
+    }
+
+    /// 8xy3 - XOR Vx, Vy
+    /// Set Vx = Vx XOR Vy.
+    ///
+    /// Performs a bitwise XOR on the values of Vx and Vy, then stores the result in Vx.
+    fn handle_xor_register_register(&mut self, x: usize, y: usize) {
+        self.registers.vx[x] ^= self.registers.vx[y];
+    }
+
+    /// 8xy4 - ADD Vx, Vy
+    /// Set Vx = Vx + Vy, set VF = carry.
+    ///
+    /// The values of Vx and Vy are added together. If the result is greater than 8 bits
+    /// (i.e., > 255,) VF is set to 1, otherwise 0. Only the lowest 8 bits of the result are kept, and stored in Vx.
+    fn handle_add_register_register(&mut self, x: usize, y: usize) {
+        let a = self.registers.vx[x];
+        let b = self.registers.vx[y];
+
+        if let Some(result) = a.checked_add(b) {
+            self.registers.vx[x] = result;
+            self.registers.vx[0xF] = 0;
+        } else {
+            self.registers.vx[x] = 0xFF;
+            self.registers.vx[0xF] = 1;
+        }
+    }
+
+    /// 8xy5 - SUB Vx, Vy
+    /// Set Vx = Vx - Vy, set VF = NOT borrow.
+    ///
+    /// If Vx > Vy, then VF is set to 1, otherwise 0. Then Vy is subtracted from Vx, and the results stored in Vx.
+    fn handle_sub_register_register(&mut self, x: usize, y: usize) {
+        let a = self.registers.vx[x];
+        let b = self.registers.vx[y];
+
+        self.registers.vx[x] = a - b;
+
+        if a > b {
+            self.registers.vx[0xF] = 1;
+        } else {
+            self.registers.vx[0xF] = 0;
+        }
     }
 
     /// Annn - LD I, addr
@@ -313,7 +387,46 @@ mod tests {
 
         interpreter.step();
 
-        assert_eq!(interpreter.registers.vx[0xa], 0x23);
+        assert_eq!(interpreter.registers.vx[0xA], 0x23);
+    }
+
+    #[test]
+    fn test_handle_or_register_register() {
+        let rom: &[u8] = &[0x8B, 0xD1];
+        let mut interpreter = Interpreter::with_rom(rom);
+
+        interpreter.registers.vx[0xB] = 0x23;
+        interpreter.registers.vx[0xD] = 0x42;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.vx[0xB], 0x63);
+    }
+
+    #[test]
+    fn test_handle_and_register_register() {
+        let rom: &[u8] = &[0x8E, 0x12];
+        let mut interpreter = Interpreter::with_rom(rom);
+
+        interpreter.registers.vx[0xE] = 0x23;
+        interpreter.registers.vx[0x1] = 0x42;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.vx[0xE], 0x2);
+    }
+
+    #[test]
+    fn test_handle_xor_register_register() {
+        let rom: &[u8] = &[0x89, 0x73];
+        let mut interpreter = Interpreter::with_rom(rom);
+
+        interpreter.registers.vx[0x9] = 0x15;
+        interpreter.registers.vx[0x7] = 0x37;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.vx[0x9], 0x22);
     }
 
     #[test]
