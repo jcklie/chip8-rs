@@ -257,8 +257,6 @@ impl Interpreter {
                 mask >>= 1;
 
                 col += 1;
-
-                print!("{}", if value { "o" } else { " " });
             }
 
             row += 1;
