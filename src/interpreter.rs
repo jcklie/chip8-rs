@@ -205,7 +205,9 @@ impl Interpreter {
         let a = self.registers.vx[x];
         let b = self.registers.vx[y];
 
-        self.registers.vx[x] = a - b;
+        let result = a.wrapping_sub(b);
+
+        self.registers.vx[x] = result;
 
         if a > b {
             self.registers.vx[0xF] = 1;
@@ -275,6 +277,7 @@ impl Interpreter {
 #[cfg(test)]
 mod tests {
     use super::Interpreter;
+    use test_case::test_case;
 
     #[test]
     fn test_handle_clear() {}
@@ -289,72 +292,41 @@ mod tests {
         assert_eq!(interpreter.registers.pc, 0x789);
     }
 
-    #[test]
-    fn test_handle_skip_if_equal_immediate_equal() {
-        let rom: &[u8] = &[0x33, 0x42];
+    #[test_case(3 , 15, 15, 0x204; "SE: vx equals k")]
+    #[test_case(7, 0x42, 0x23, 0x202 ; "SE: vx does not equal k")]
+    fn test_handle_skip_if_equal_immediate(x: u8, vx: u8, k: u8, pc: u16) {
+        let rom: &[u8] = &[0x30 | x, k];
         let mut interpreter = Interpreter::with_rom(rom);
-        interpreter.registers.vx[3] = 0x42;
+        interpreter.registers.vx[x as usize] = vx;
 
         interpreter.step();
 
-        assert_eq!(interpreter.registers.pc, 0x204);
+        assert_eq!(interpreter.registers.pc, pc);
     }
 
-    #[test]
-    fn test_handle_skip_if_equal_immediate_unequal() {
-        let rom: &[u8] = &[0x33, 0x42];
+    #[test_case(0xA , 0x18, 0x18, 0x202; "SNE: vx equals k")]
+    #[test_case(0xB, 0x13, 0x55, 0x204 ; "SNE: vx does not equal k")]
+    fn test_handle_skip_if_not_equal_immediate(x: u8, vx: u8, k: u8, pc: u16) {
+        let rom: &[u8] = &[0x40 | x, k];
         let mut interpreter = Interpreter::with_rom(rom);
-        interpreter.registers.vx[3] = 0x43;
+        interpreter.registers.vx[x as usize] = vx;
 
         interpreter.step();
 
-        assert_eq!(interpreter.registers.pc, 0x202);
+        assert_eq!(interpreter.registers.pc, pc);
     }
 
-    #[test]
-    fn test_handle_skip_if_not_equal_immediate_equal() {
-        let rom: &[u8] = &[0x43, 0x42];
+    #[test_case(0xA , 0x0, 0x18, 0x18, 0x204; "SE: vx equals vy")]
+    #[test_case(0x7, 0x5, 1, 0x55, 0x202 ; "SE: vx does not equal vy")]
+    fn test_handle_skip_if_equal_register(x: u8, y: u8, vx: u8, vy: u8, pc: u16) {
+        let rom: &[u8] = &[0x50 | x, y << 4];
         let mut interpreter = Interpreter::with_rom(rom);
-        interpreter.registers.vx[3] = 0x42;
+        interpreter.registers.vx[x as usize] = vx;
+        interpreter.registers.vx[y as usize] = vy;
 
         interpreter.step();
 
-        assert_eq!(interpreter.registers.pc, 0x202);
-    }
-
-    #[test]
-    fn test_handle_skip_if_not_equal_immediate_unequal() {
-        let rom: &[u8] = &[0x43, 0x42];
-        let mut interpreter = Interpreter::with_rom(rom);
-        interpreter.registers.vx[3] = 0x43;
-
-        interpreter.step();
-
-        assert_eq!(interpreter.registers.pc, 0x204);
-    }
-
-    #[test]
-    fn test_handle_skip_if_not_equal_register_equal() {
-        let rom: &[u8] = &[0x53, 0x40];
-        let mut interpreter = Interpreter::with_rom(rom);
-        interpreter.registers.vx[3] = 0x42;
-        interpreter.registers.vx[4] = 0x42;
-
-        interpreter.step();
-
-        assert_eq!(interpreter.registers.pc, 0x204);
-    }
-
-    #[test]
-    fn test_handle_skip_if_not_equal_register_unequal() {
-        let rom: &[u8] = &[0x53, 0x40];
-        let mut interpreter = Interpreter::with_rom(rom);
-        interpreter.registers.vx[3] = 0x42;
-        interpreter.registers.vx[4] = 0x23;
-
-        interpreter.step();
-
-        assert_eq!(interpreter.registers.pc, 0x202);
+        assert_eq!(interpreter.registers.pc, pc);
     }
 
     #[test]
@@ -427,6 +399,38 @@ mod tests {
         interpreter.step();
 
         assert_eq!(interpreter.registers.vx[0x9], 0x22);
+    }
+
+    #[test_case(0xB , 0x3, 5, 3, 8, 0; "ADD: vx + vy - No overflow")]
+    #[test_case(0x2, 0x9, 0xFA, 0x13, 0xFF, 1 ; "ADD: vx + vy - Overflow")]
+    #[test_case(0xF, 0x0, 0xAA, 0xBB, 1, 1 ; "ADD: vx + vy - Target VF + Overflow")]
+    #[test_case(0xF, 0x7, 17, 58, 0, 0 ; "ADD: vx + vy - Target VF + No Overflow")]
+    fn test_handle_add_register_register(x: u8, y: u8, vx: u8, vy: u8, result: u8, carry: u8) {
+        let rom: &[u8] = &[0x80 | x, (y << 4) | 0x4];
+        let mut interpreter = Interpreter::with_rom(rom);
+        interpreter.registers.vx[x as usize] = vx;
+        interpreter.registers.vx[y as usize] = vy;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.vx[x as usize], result, "Result wrong");
+        assert_eq!(interpreter.registers.vx[0xF], carry, "Carry wrong");
+    }
+
+    #[test_case(0xC , 0x2, 25, 12, 13, 1; "SUB: vx - vy - No Underflow")]
+    #[test_case(0xD, 0x4, 0x13, 0x15, 0b11111110, 0 ; "SUB: vx - vy - Underflow")]
+    #[test_case(0xF, 0x0, 5, 7, 0, 0 ; "SUB: vx - vy - Target VF - Underflow")]
+    #[test_case(0xF, 0xE, 7, 5, 1, 1 ; "SUB: vx - vy - Target VF - No Underflow")]
+    fn test_handle_sub_register_register(x: u8, y: u8, vx: u8, vy: u8, result: u8, underflow: u8) {
+        let rom: &[u8] = &[0x80 | x, (y << 4) | 0x5];
+        let mut interpreter = Interpreter::with_rom(rom);
+        interpreter.registers.vx[x as usize] = vx;
+        interpreter.registers.vx[y as usize] = vy;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.vx[x as usize], result, "Result wrong");
+        assert_eq!(interpreter.registers.vx[0xF], underflow, "Underflow wrong");
     }
 
     #[test]
