@@ -82,7 +82,7 @@ impl Interpreter {
                 0xA => self.handle_load_immediate(bottom_tribble),
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
 
-                _ => panic!("Unknown instruction: {:#02x}", cur),
+                _ => eprintln!("Unknown instruction: {:#02x}", cur),
             }
         }
 
@@ -144,7 +144,8 @@ impl Interpreter {
     ///
     /// Adds the value kk to the value of register Vx, then stores the result in Vx.
     fn handle_add_register_immediate(&mut self, x: usize, k: u8) {
-        self.registers.vx[x] += k;
+        let result = self.registers.vx[x].wrapping_add(k);
+        self.registers.vx[x] = result;
     }
 
     /// 8xy0 - LD Vx, Vy
@@ -188,12 +189,13 @@ impl Interpreter {
         let a = self.registers.vx[x];
         let b = self.registers.vx[y];
 
-        if let Some(result) = a.checked_add(b) {
-            self.registers.vx[x] = result;
-            self.registers.vx[0xF] = 0;
-        } else {
-            self.registers.vx[x] = 0xFF;
+        let (result, overflow) = a.overflowing_add(b);
+        self.registers.vx[x] = result;
+
+        if overflow {
             self.registers.vx[0xF] = 1;
+        } else {
+            self.registers.vx[0xF] = 0;
         }
     }
 
@@ -402,7 +404,7 @@ mod tests {
     }
 
     #[test_case(0xB , 0x3, 5, 3, 8, 0; "ADD: vx + vy - No overflow")]
-    #[test_case(0x2, 0x9, 0xFA, 0x13, 0xFF, 1 ; "ADD: vx + vy - Overflow")]
+    #[test_case(0x2, 0x9, 0xFA, 0x13, 0xD, 1 ; "ADD: vx + vy - Overflow")]
     #[test_case(0xF, 0x0, 0xAA, 0xBB, 1, 1 ; "ADD: vx + vy - Target VF + Overflow")]
     #[test_case(0xF, 0x7, 17, 58, 0, 0 ; "ADD: vx + vy - Target VF + No Overflow")]
     fn test_handle_add_register_register(x: u8, y: u8, vx: u8, vy: u8, result: u8, carry: u8) {
