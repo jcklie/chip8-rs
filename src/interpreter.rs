@@ -99,7 +99,8 @@ impl Interpreter {
                 }
                 0xA => self.handle_load_immediate(bottom_tribble),
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
-
+                0xF if second_byte == 0x55 => self.handle_store_registers_in_memory(second_nibble as usize),
+                0xF if second_byte == 0x65 => self.handle_load_registers_from_memory(second_nibble as usize),
                 _ => eprintln!("Unknown instruction: {:#02x}", cur),
             }
         }
@@ -370,6 +371,28 @@ impl Interpreter {
         }
     }
 
+    /// Fx55 - LD [I], Vx
+    /// Store registers V0 through Vx in memory starting at location I.
+    ///
+    /// The interpreter copies the values of registers V0 through Vx into memory, starting at the address in I.
+    fn handle_store_registers_in_memory(&mut self, x: usize) {
+        let i = self.registers.i as usize;
+        for offset in 0..=x {
+            self.memory.0[i + offset] = self.registers.vx[offset];
+        }
+    }
+
+    /// Fx65 - LD Vx, [I]
+    /// Read registers V0 through Vx from memory starting at location I.
+    ///
+    /// The interpreter reads values from memory starting at location I into registers V0 through Vx.
+    fn handle_load_registers_from_memory(&mut self, x: usize) {
+        let i = self.registers.i as usize;
+        for offset in 0..=x {
+            self.registers.vx[offset] = self.memory.0[i + offset];
+        }
+    }
+
     pub fn display(&self) -> &Display {
         &self.display
     }
@@ -619,6 +642,66 @@ mod tests {
 
     #[test]
     fn test_handle_load_immediate() {
+        let rom: &[u8] = &[0xA6, 0x78];
+        let mut interpreter = Interpreter::with_rom(rom);
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.i, 0x678);
+    }
+
+    #[test]
+    fn test_handle_store_registers_in_memory() {
+        let values: Vec<u8> = vec![116, 58, 224, 135, 225, 142, 236, 47, 66, 29, 230, 171, 127, 21, 11, 147];
+
+        for x in 0..16 {
+            let rom: &[u8] = &[0xF0 | x, 0x55];
+            let mut interpreter = Interpreter::with_rom(rom);
+            interpreter.registers.i = 0x400;
+
+            for i in 0..16 {
+                interpreter.registers.vx[i] = values[i];
+            }
+
+            interpreter.step();
+
+            for i in 0..=x as usize {
+                assert_eq!(interpreter.memory.0[interpreter.registers.i as usize + i], values[i]);
+            }
+
+            for i in (x + 1) as usize..16 {
+                assert_eq!(interpreter.memory.0[interpreter.registers.i as usize + i], 0);
+            }
+        }
+    }
+
+    #[test]
+    fn test_handle_load_registers_from_memory() {
+        let values: Vec<u8> = vec![116, 58, 224, 135, 225, 142, 236, 47, 66, 29, 230, 171, 127, 21, 11, 147];
+
+        for x in 0..16 {
+            let rom: &[u8] = &[0xF0 | x, 0x65];
+            let mut interpreter = Interpreter::with_rom(rom);
+            interpreter.registers.i = 0x400;
+
+            for i in 0..16 {
+                interpreter.memory.0[interpreter.registers.i as usize + i] = values[i];
+            }
+
+            interpreter.step();
+
+            for i in 0..=x as usize {
+                assert_eq!(interpreter.registers.vx[i], values[i]);
+            }
+
+            for i in (x + 1) as usize..16 {
+                assert_eq!(interpreter.registers.vx[i], 0);
+            }
+        }
+    }
+
+    #[test]
+    fn handle_load_registers_from_memory() {
         let rom: &[u8] = &[0xA6, 0x78];
         let mut interpreter = Interpreter::with_rom(rom);
 
