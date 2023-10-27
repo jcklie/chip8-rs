@@ -20,4 +20,44 @@ pub(crate) struct Registers {
     pub stack: [u16; 16],
 }
 
-impl Registers {}
+impl Registers {
+    /// The interpreter increments the stack pointer, then puts the current PC on the top of the stack. The PC is then set to nnn.
+    pub fn push(&mut self, n: u16) {
+        self.sp += 1;
+        self.stack[self.sp as usize] = self.pc;
+        self.pc = n;
+    }
+
+    /// The interpreter sets the program counter to the address at the top of the stack, then subtracts 1 from the stack pointer.
+    pub fn pop(&mut self) {
+        self.pc = self.stack[self.sp as usize];
+        self.sp -= 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Registers;
+
+    #[test]
+    fn test_push_pop() {
+        let mut registers = Registers::default();
+        registers.pc = 0x42;
+
+        registers.push(0x23);
+        assert_eq!(registers.sp, 1);
+        assert_eq!(registers.pc, 0x23);
+
+        registers.push(0x77);
+        assert_eq!(registers.sp, 2);
+        assert_eq!(registers.pc, 0x77);
+
+        registers.pop();
+        assert_eq!(registers.sp, 1);
+        assert_eq!(registers.pc, 0x23);
+
+        registers.pop();
+        assert_eq!(registers.sp, 0);
+        assert_eq!(registers.pc, 0x42);
+    }
+}

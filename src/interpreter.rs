@@ -48,10 +48,16 @@ impl Interpreter {
 
         if cur == 0x00E0 {
             self.handle_clear();
+        } else if cur == 0x00EE {
+            self.handle_ret();
         } else {
             match first_nibble {
                 0x1 => {
                     self.handle_jump(bottom_tribble);
+                    return;
+                }
+                0x2 => {
+                    self.handle_call(bottom_tribble);
                     return;
                 }
                 0x3 => self.handle_skip_if_equal_immediate(second_nibble as usize, second_byte),
@@ -87,7 +93,7 @@ impl Interpreter {
                 }
                 0x8 if fourth_nibble == 0xE => {
                     self.handle_shift_left_register_one(second_nibble as usize, third_nibble as usize)
-                },
+                }
                 0x9 if fourth_nibble == 0 => {
                     self.handle_skip_if_not_equal_register(second_nibble as usize, third_nibble as usize)
                 }
@@ -105,12 +111,28 @@ impl Interpreter {
         self.display.clear();
     }
 
+    /// 00EE - RET
+    /// Return from a subroutine.
+    ///
+    /// The interpreter sets the program counter to the address at the top of the stack, then subtracts 1 from the stack pointer.
+    fn handle_ret(&mut self) {
+        self.registers.pop();
+    }
+
     /// 1nnn - JP addr
     /// Jump to location nnn.
     ///
     /// The interpreter sets the program counter to nnn.
     fn handle_jump(&mut self, n: u16) {
         self.registers.pc = n;
+    }
+
+    /// 2nnn - CALL addr
+    /// Call subroutine at nnn.
+    ///
+    /// The interpreter increments the stack pointer, then puts the current PC on the top of the stack. The PC is then set to nnn.
+    fn handle_call(&mut self, n: u16) {
+        self.registers.push(n);
     }
 
     /// 3xkk - SE Vx, byte
@@ -369,6 +391,30 @@ mod tests {
         interpreter.step();
 
         assert_eq!(interpreter.registers.pc, 0x789);
+    }
+
+    #[test]
+    fn test_handle_push() {
+        let rom: &[u8] = &[0x21, 0x23];
+        let mut interpreter = Interpreter::with_rom(rom);
+
+        interpreter.step();
+        assert_eq!(interpreter.registers.sp, 1);
+        assert_eq!(interpreter.registers.pc, 0x123);
+    }
+
+    #[test]
+    fn test_handle_pop() {
+        let rom: &[u8] = &[0x22, 0x06, 0x00, 0xE0, 0x00, 0xE0, 0x00, 0xEE];
+        let mut interpreter = Interpreter::with_rom(rom);
+
+        interpreter.step();
+        assert_eq!(interpreter.registers.sp, 1);
+        assert_eq!(interpreter.registers.pc, 0x206);
+
+        interpreter.step();
+        assert_eq!(interpreter.registers.sp, 0);
+        assert_eq!(interpreter.registers.pc, 0x202);
     }
 
     #[test_case(3 , 15, 15, 0x204; "SE: vx equals k")]
