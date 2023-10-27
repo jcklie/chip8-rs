@@ -99,6 +99,7 @@ impl Interpreter {
                 }
                 0xA => self.handle_load_immediate(bottom_tribble),
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
+                0xF if second_byte == 0x33 => self.handle_load_bcd(second_nibble as usize),
                 0xF if second_byte == 0x55 => self.handle_store_registers_in_memory(second_nibble as usize),
                 0xF if second_byte == 0x65 => self.handle_load_registers_from_memory(second_nibble as usize),
                 _ => eprintln!("Unknown instruction: {:#02x}", cur),
@@ -369,6 +370,19 @@ impl Interpreter {
         } else {
             self.registers.vx[0xF] = 0;
         }
+    }
+
+    /// Fx33 - LD B, Vx
+    /// Store BCD representation of Vx in memory locations I, I+1, and I+2.
+    ///
+    /// The interpreter takes the decimal value of Vx, and places the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2.
+    fn handle_load_bcd(&mut self, x: usize) {
+        let i = self.registers.i as usize;
+        let vx = self.registers.vx[x];
+
+        self.memory.0[i + 0] = vx / 100;
+        self.memory.0[i + 1] = (vx % 100) / 10;
+        self.memory.0[i + 2] = vx % 10;
     }
 
     /// Fx55 - LD [I], Vx
@@ -648,6 +662,26 @@ mod tests {
         interpreter.step();
 
         assert_eq!(interpreter.registers.i, 0x678);
+    }
+
+    #[test_case(0x5 , 223, 2, 2, 3; "BCD: xyz")]
+    #[test_case(0x5 , 109, 1, 0, 9; "BCD: x0z")]
+    #[test_case(0x3 , 42, 0, 4, 2; "BCD: yz")]
+    #[test_case(0xA , 7, 0, 0, 7; "BCD: z")]
+    fn test_handle_bcd(x: u8, vx: u8, hundreds: u8, tens: u8, ones: u8) {
+        let rom: &[u8] = &[0xF0 | x, 0x33];
+        let mut interpreter = Interpreter::with_rom(rom);
+        interpreter.registers.vx[x as usize] = vx;
+
+        interpreter.step();
+
+        assert_eq!(
+            interpreter.memory.0[interpreter.registers.i as usize + 0],
+            hundreds,
+            "xyz"
+        );
+        assert_eq!(interpreter.memory.0[interpreter.registers.i as usize + 1], tens, "yz");
+        assert_eq!(interpreter.memory.0[interpreter.registers.i as usize + 2], ones, "z");
     }
 
     #[test]
