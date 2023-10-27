@@ -99,6 +99,7 @@ impl Interpreter {
                 }
                 0xA => self.handle_load_immediate_into_i(bottom_tribble),
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
+                0xF if second_byte == 0x1E => self.handle_add_i_register(second_nibble as usize),
                 0xF if second_byte == 0x33 => self.handle_load_bcd(second_nibble as usize),
                 0xF if second_byte == 0x55 => self.handle_store_registers_in_memory(second_nibble as usize),
                 0xF if second_byte == 0x65 => self.handle_load_registers_from_memory(second_nibble as usize),
@@ -370,6 +371,15 @@ impl Interpreter {
         } else {
             self.registers.vx[0xF] = 0;
         }
+    }
+
+    /// Fx1E - ADD I, Vx
+    /// Set I = I + Vx.
+    ///
+    /// The values of I and Vx are added, and the results are stored in I.
+    fn handle_add_i_register(&mut self, x: usize) {
+        let result = self.registers.i.wrapping_add(self.registers.vx[x].into());
+        self.registers.i = result;
     }
 
     /// Fx33 - LD B, Vx
@@ -662,6 +672,20 @@ mod tests {
         interpreter.step();
 
         assert_eq!(interpreter.registers.i, 0x678);
+    }
+
+    #[test_case(0x5 , 5, 7, 12; "ADD i, vx: no overflow")]
+    #[test_case(0x5 , 0xFA, 0xFFFA, 0xF4; "ADD i, vx: overflow")]
+    fn test_handle_add_i_register(x: u8, vx: u8, i: u16, result: u16) {
+        let rom: &[u8] = &[0xF0 | x, 0x1E];
+        let mut interpreter = Interpreter::with_rom(rom);
+
+        interpreter.registers.i = i;
+        interpreter.registers.vx[x as usize] = vx;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.i, result);
     }
 
     #[test_case(0x5 , 223, 2, 2, 3; "BCD: xyz")]
