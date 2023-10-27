@@ -2,6 +2,7 @@ use std::convert::TryInto;
 
 use crate::{
     display::Display,
+    keyboard::Keyboard,
     memory::{Memory, START_ROM},
     registers::Registers,
 };
@@ -10,6 +11,7 @@ pub struct Interpreter {
     registers: Registers,
     memory: Memory,
     display: Display,
+    keyboard: Keyboard,
 }
 
 impl Interpreter {
@@ -21,11 +23,13 @@ impl Interpreter {
         registers.pc = START_ROM as u16;
 
         let display = Display::new();
+        let keyboard = Keyboard::new();
 
         Interpreter {
             registers,
             memory,
             display,
+            keyboard,
         }
     }
 
@@ -99,6 +103,10 @@ impl Interpreter {
                 }
                 0xA => self.handle_load_immediate_into_i(bottom_tribble),
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
+                0xF if second_byte == 0x0A => {
+                    self.handle_wait_for_keypress(second_nibble as usize);
+                    return;
+                }
                 0xF if second_byte == 0x1E => self.handle_add_i_register(second_nibble as usize),
                 0xF if second_byte == 0x33 => self.handle_load_bcd(second_nibble as usize),
                 0xF if second_byte == 0x55 => self.handle_store_registers_in_memory(second_nibble as usize),
@@ -373,6 +381,17 @@ impl Interpreter {
         }
     }
 
+    /// Fx0A - LD Vx, K
+    /// Wait for a key press, store the value of the key in Vx.
+    ///
+    /// All execution stops until a key is pressed, then the value of that key is stored in Vx.
+    fn handle_wait_for_keypress(&mut self, x: usize) {
+        if let Some(keycode) = self.keyboard.pressed_key {
+            self.registers.vx[x] = keycode;
+            self.registers.pc += 2;
+        }
+    }
+
     /// Fx1E - ADD I, Vx
     /// Set I = I + Vx.
     ///
@@ -419,6 +438,14 @@ impl Interpreter {
 
     pub fn display(&self) -> &Display {
         &self.display
+    }
+
+    pub fn keyboard(&self) -> &Keyboard {
+        &self.keyboard
+    }
+
+    pub fn keyboard_mut(&mut self) -> &mut Keyboard {
+        &mut self.keyboard
     }
 }
 
@@ -672,6 +699,20 @@ mod tests {
         interpreter.step();
 
         assert_eq!(interpreter.registers.i, 0x678);
+    }
+
+    #[test_case(0x3, None, 0x200, 0; "LD Vx, K: not pressed")]
+    #[test_case(0xE, Some(0xA),  0x202, 0xA; "LD Vx, K: pressed")]
+    fn test_handle_wait_for_keypress(x: u8, key: Option<u8>, pc: u16, vx: u8) {
+        let rom: &[u8] = &[0xF0 | x, 0x0A];
+        let mut interpreter = Interpreter::with_rom(rom);
+
+        interpreter.keyboard_mut().pressed_key = key;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.pc, pc);
+        assert_eq!(interpreter.registers.vx[x as usize], vx);
     }
 
     #[test_case(0x5 , 5, 7, 12; "ADD i, vx: no overflow")]

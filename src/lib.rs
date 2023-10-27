@@ -1,5 +1,6 @@
 pub mod display;
 pub mod interpreter;
+pub mod keyboard;
 mod memory;
 mod registers;
 
