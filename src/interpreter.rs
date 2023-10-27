@@ -103,6 +103,8 @@ impl Interpreter {
                 }
                 0xA => self.handle_load_immediate_into_i(bottom_tribble),
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
+                0xE if second_byte == 0x9E => self.handle_skip_if_key_pressed(second_nibble as usize),
+                0xE if second_byte == 0xA1 => self.handle_skip_if_key_not_pressed(second_nibble as usize),
                 0xF if second_byte == 0x0A => {
                     self.handle_wait_for_keypress(second_nibble as usize);
                     return;
@@ -378,6 +380,30 @@ impl Interpreter {
             self.registers.vx[0xF] = 1;
         } else {
             self.registers.vx[0xF] = 0;
+        }
+    }
+
+    /// Ex9E - SKP Vx
+    /// Skip next instruction if key with the value of Vx is pressed.
+    ///
+    /// Checks the keyboard, and if the key corresponding to the value of Vx is currently in the down position, PC is increased by 2.
+    fn handle_skip_if_key_pressed(&mut self, x: usize) {
+        let keycode = self.registers.vx[x];
+
+        if Some(keycode) == self.keyboard.pressed_key {
+            self.registers.pc += 2;
+        }
+    }
+
+    /// ExA1 - SKNP Vx
+    /// Skip next instruction if key with the value of Vx is not pressed.
+    ///     
+    /// Checks the keyboard, and if the key corresponding to the value of Vx is currently in the up position, PC is increased by 2.
+    fn handle_skip_if_key_not_pressed(&mut self, x: usize) {
+        let keycode = self.registers.vx[x];
+
+        if Some(keycode) != self.keyboard.pressed_key {
+            self.registers.pc += 2;
         }
     }
 
@@ -699,6 +725,36 @@ mod tests {
         interpreter.step();
 
         assert_eq!(interpreter.registers.i, 0x678);
+    }
+
+    #[test_case(0x3, 0x5, Some(0x5), 0x204; "SKP Vx: wanted key is pressed")]
+    #[test_case(0xE, 0x1, None,  0x202; "SKP Vx: no key pressed")]
+    #[test_case(0x7, 0xB, Some(0xE),  0x202; "SKP Vx: different pressed")]
+    fn test_handle_skip_if_key_pressed(x: u8, vx: u8, key: Option<u8>, pc: u16) {
+        let rom: &[u8] = &[0xE0 | x, 0x9E];
+        let mut interpreter = Interpreter::with_rom(rom);
+
+        interpreter.keyboard_mut().pressed_key = key;
+        interpreter.registers.vx[x as usize] = vx;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.pc, pc);
+    }
+
+    #[test_case(0x3, 0x5, Some(0x5), 0x202; "SKNP Vx: specified key is pressed")]
+    #[test_case(0xE, 0x1, None,  0x204; "SKNP Vx: no key pressed")]
+    #[test_case(0x7, 0xB, Some(0xE),  0x204; "SKNP Vx: different pressed")]
+    fn test_handle_skip_if_key_not_pressed(x: u8, vx: u8, key: Option<u8>, pc: u16) {
+        let rom: &[u8] = &[0xE0 | x, 0xA1];
+        let mut interpreter = Interpreter::with_rom(rom);
+
+        interpreter.keyboard_mut().pressed_key = key;
+        interpreter.registers.vx[x as usize] = vx;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.pc, pc);
     }
 
     #[test_case(0x3, None, 0x200, 0; "LD Vx, K: not pressed")]
