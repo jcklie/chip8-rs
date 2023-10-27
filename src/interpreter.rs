@@ -97,7 +97,7 @@ impl Interpreter {
                 0x9 if fourth_nibble == 0 => {
                     self.handle_skip_if_not_equal_register(second_nibble as usize, third_nibble as usize)
                 }
-                0xA => self.handle_load_immediate(bottom_tribble),
+                0xA => self.handle_load_immediate_into_i(bottom_tribble),
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
                 0xF if second_byte == 0x33 => self.handle_load_bcd(second_nibble as usize),
                 0xF if second_byte == 0x55 => self.handle_store_registers_in_memory(second_nibble as usize),
@@ -325,7 +325,7 @@ impl Interpreter {
     /// Set I = nnn.
     ///
     /// The value of register I is set to nnn.
-    fn handle_load_immediate(&mut self, n: u16) {
+    fn handle_load_immediate_into_i(&mut self, n: u16) {
         self.registers.i = n;
     }
 
@@ -655,7 +655,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_load_immediate() {
+    fn test_handle_load_immediate_into_i() {
         let rom: &[u8] = &[0xA6, 0x78];
         let mut interpreter = Interpreter::with_rom(rom);
 
