@@ -31,6 +31,7 @@ fn run_rom(bytes: &[u8]) -> Result<()> {
 
     // Limit to max ~60 fps update rate
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
+    window.topmost(true);
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         for (i, p) in buffer.iter_mut().zip(interpreter.display().pixels()) {
