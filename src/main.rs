@@ -16,7 +16,7 @@ struct Cli {
 }
 
 fn run_rom(bytes: &[u8]) -> Result<()> {
-    let mut interpreter = Interpreter::with_rom(&bytes);
+    let mut interpreter = Interpreter::with_rom(bytes);
 
     let width = interpreter.display().width();
     let height = interpreter.display().height();

@@ -34,7 +34,7 @@ impl Interpreter {
 
         let cur: u16 = u16::from_be_bytes(self.memory.0[pc..pc + 2].try_into().unwrap());
 
-        let first_byte = self.memory.0[pc];
+        let _first_byte = self.memory.0[pc];
         let second_byte = self.memory.0[pc + 1];
 
         let first_nibble = ((cur & 0xF000) >> 12) as u8;

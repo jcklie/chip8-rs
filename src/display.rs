@@ -61,11 +61,11 @@ mod tests {
             for y in 0..display.height() {
                 display.xor_pixel(x, y, true);
 
-                assert_eq!(display.pixel(x, y), true);
+                assert!(display.pixel(x, y));
 
                 display.xor_pixel(x, y, true);
 
-                assert_eq!(display.pixel(x, y), false);
+                assert!(!display.pixel(x, y));
             }
         }
     }
@@ -77,7 +77,7 @@ mod tests {
         for x in 0..display.width() {
             for y in 0..display.height() {
                 display.xor_pixel(x, y, true);
-                assert_eq!(display.pixel(x, y), true);
+                assert!(display.pixel(x, y));
             }
         }
 
@@ -85,7 +85,7 @@ mod tests {
 
         for x in 0..display.width() {
             for y in 0..display.height() {
-                assert_eq!(display.pixel(x, y), false);
+                assert!(!display.pixel(x, y));
             }
         }
     }

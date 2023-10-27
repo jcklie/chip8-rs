@@ -11,7 +11,7 @@ impl Memory {
 
     pub fn load_rom(&mut self, bytes: &[u8]) {
         let num_bytes = bytes.len();
-        self.0[START_ROM..START_ROM + num_bytes].copy_from_slice(&bytes);
+        self.0[START_ROM..START_ROM + num_bytes].copy_from_slice(bytes);
     }
 }
 
