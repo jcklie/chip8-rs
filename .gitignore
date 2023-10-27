@@ -44,3 +44,4 @@ rust-project.json
 # End of https://www.toptal.com/developers/gitignore/api/rust,visualstudiocode,rust-analyzer
 
 chip8-test-suite/
+games
