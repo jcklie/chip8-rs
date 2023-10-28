@@ -65,21 +65,21 @@ impl InputCallback for KeyCharCallback {
 
 fn run_rom(bytes: &[u8]) -> Result<()> {
     let keymap: HashMap<Key, u8> = HashMap::from([
-        (Key::Key1, 0x0),
-        (Key::Key2, 0x1),
-        (Key::Key3, 0x2),
-        (Key::Key4, 0x3),
+        (Key::Key1, 0x1),
+        (Key::Key2, 0x2),
+        (Key::Key3, 0x3),
+        (Key::Key4, 0xC),
         (Key::Q, 0x4),
         (Key::W, 0x5),
         (Key::E, 0x6),
-        (Key::R, 0x7),
-        (Key::A, 0x8),
-        (Key::S, 0x9),
-        (Key::D, 0xA),
-        (Key::F, 0xB),
-        (Key::Y, 0xC),
-        (Key::X, 0xD),
-        (Key::C, 0xE),
+        (Key::R, 0xD),
+        (Key::A, 0x7),
+        (Key::S, 0x8),
+        (Key::D, 0x9),
+        (Key::F, 0xE),
+        (Key::Y, 0xA),
+        (Key::X, 0x0),
+        (Key::C, 0xB),
         (Key::V, 0xF),
     ]);
 
