@@ -1,4 +1,4 @@
-use std::fmt::{Display, format};
+use std::fmt::{format, Display};
 
 pub struct Keyboard {
     pressed_keys: [bool; 16],
@@ -23,12 +23,9 @@ impl Keyboard {
         self.most_recent_key = Some(key)
     }
 
-    pub fn clear(&mut self) {
-        for key in 0..16 {
-            self.pressed_keys[key as usize] = false;
-        }
-
-        self.most_recent_key = None
+    pub fn release_key(&mut self, key: u8) {
+        self.pressed_keys[key as usize] = false;
+        self.most_recent_key = None;
     }
 
     pub fn most_recent_key(&self) -> Option<u8> {
@@ -38,7 +35,7 @@ impl Keyboard {
 
 impl Display for Keyboard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}",self.pressed_keys.map(|k| if k {"o"} else { " "} ).join(""))
+        write!(f, "{}", self.pressed_keys.map(|k| if k { "o" } else { " " }).join(""))
     }
 }
 
@@ -57,7 +54,7 @@ mod tests {
     }
 
     #[test]
-    fn test_set_key_state() {
+    fn test_press_key() {
         let mut keyboard = Keyboard::new();
 
         let key: u8 = 0xA;
@@ -68,19 +65,16 @@ mod tests {
     }
 
     #[test]
-    fn test_clear() {
+    fn test_release_key() {
         let mut keyboard = Keyboard::new();
 
-        for key in 0..16 {
-            keyboard.press_key(key);
-            assert_eq!(keyboard.most_recent_key, Some(key));
-        }
+        let key: u8 = 0xE;
+        keyboard.pressed_keys[key as usize] = true;
+        keyboard.most_recent_key = Some(key);
 
-        keyboard.clear();
+        keyboard.release_key(key);
 
-        for key in 0..16 {
-            assert!(!keyboard.is_pressed(key));
-        }
+        assert!(!keyboard.pressed_keys[key as usize]);
         assert_eq!(keyboard.most_recent_key, None);
     }
 }
