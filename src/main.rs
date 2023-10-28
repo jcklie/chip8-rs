@@ -101,14 +101,11 @@ fn run_rom(bytes: &[u8]) -> Result<()> {
     window.topmost(true);
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        interpreter.keyboard_mut().pressed_key = None;
+        interpreter.keyboard_mut().clear();
 
         for key in window.get_keys().iter() {
-            // We consider the first key to match the currently pressed key, as CHIP-8 has no concept
-            // of multiple keys pressed at the same time.
             if let Some(keycode) = keymap.get(key) {
-                interpreter.keyboard_mut().pressed_key = Some(*keycode);
-                break;
+                interpreter.keyboard_mut().press_key(*keycode);
             }
         }
 

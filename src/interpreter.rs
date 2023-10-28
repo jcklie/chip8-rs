@@ -34,6 +34,8 @@ impl Interpreter {
     }
 
     pub fn step(&mut self) {
+        self.registers.delay = self.registers.delay.saturating_sub(1);
+
         let pc = self.registers.pc as usize;
 
         let cur: u16 = u16::from_be_bytes(self.memory.0[pc..pc + 2].try_into().unwrap());
@@ -105,10 +107,12 @@ impl Interpreter {
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
                 0xE if second_byte == 0x9E => self.handle_skip_if_key_pressed(second_nibble as usize),
                 0xE if second_byte == 0xA1 => self.handle_skip_if_key_not_pressed(second_nibble as usize),
+                0xF if second_byte == 0x07 => self.handle_store_delay_timer_register(second_nibble as usize),
                 0xF if second_byte == 0x0A => {
                     self.handle_wait_for_keypress(second_nibble as usize);
                     return;
                 }
+                0xF if second_byte == 0x15 => self.handle_load_delay_timer_register(second_nibble as usize),
                 0xF if second_byte == 0x1E => self.handle_add_i_register(second_nibble as usize),
                 0xF if second_byte == 0x33 => self.handle_load_bcd(second_nibble as usize),
                 0xF if second_byte == 0x55 => self.handle_store_registers_in_memory(second_nibble as usize),
@@ -390,7 +394,7 @@ impl Interpreter {
     fn handle_skip_if_key_pressed(&mut self, x: usize) {
         let keycode = self.registers.vx[x];
 
-        if Some(keycode) == self.keyboard.pressed_key {
+        if self.keyboard.is_pressed(keycode) {
             self.registers.pc += 2;
         }
     }
@@ -402,9 +406,17 @@ impl Interpreter {
     fn handle_skip_if_key_not_pressed(&mut self, x: usize) {
         let keycode = self.registers.vx[x];
 
-        if Some(keycode) != self.keyboard.pressed_key {
+        if !self.keyboard.is_pressed(keycode) {
             self.registers.pc += 2;
         }
+    }
+
+    /// Fx07 - LD Vx, DT
+    /// Set Vx = delay timer value.
+    ///
+    /// The value of DT is placed into Vx.
+    fn handle_store_delay_timer_register(&mut self, x: usize) {
+        self.registers.vx[x] = self.registers.delay;
     }
 
     /// Fx0A - LD Vx, K
@@ -412,10 +424,18 @@ impl Interpreter {
     ///
     /// All execution stops until a key is pressed, then the value of that key is stored in Vx.
     fn handle_wait_for_keypress(&mut self, x: usize) {
-        if let Some(keycode) = self.keyboard.pressed_key {
+        if let Some(keycode) = self.keyboard.most_recent_key() {
             self.registers.vx[x] = keycode;
             self.registers.pc += 2;
         }
+    }
+
+    /// Fx15 - LD DT, Vx
+    /// Set delay timer = Vx.
+    ///
+    /// DT is set equal to the value of Vx.
+    fn handle_load_delay_timer_register(&mut self, x: usize) {
+        self.registers.delay = self.registers.vx[x]
     }
 
     /// Fx1E - ADD I, Vx
@@ -734,7 +754,10 @@ mod tests {
         let rom: &[u8] = &[0xE0 | x, 0x9E];
         let mut interpreter = Interpreter::with_rom(rom);
 
-        interpreter.keyboard_mut().pressed_key = key;
+        if let Some(keycode) = key {
+            interpreter.keyboard_mut().press_key(keycode)
+        }
+
         interpreter.registers.vx[x as usize] = vx;
 
         interpreter.step();
@@ -749,7 +772,10 @@ mod tests {
         let rom: &[u8] = &[0xE0 | x, 0xA1];
         let mut interpreter = Interpreter::with_rom(rom);
 
-        interpreter.keyboard_mut().pressed_key = key;
+        if let Some(keycode) = key {
+            interpreter.keyboard_mut().press_key(keycode)
+        }
+
         interpreter.registers.vx[x as usize] = vx;
 
         interpreter.step();
@@ -763,7 +789,9 @@ mod tests {
         let rom: &[u8] = &[0xF0 | x, 0x0A];
         let mut interpreter = Interpreter::with_rom(rom);
 
-        interpreter.keyboard_mut().pressed_key = key;
+        if let Some(keycode) = key {
+            interpreter.keyboard_mut().press_key(keycode)
+        }
 
         interpreter.step();
 
