@@ -424,7 +424,7 @@ impl Interpreter {
     ///
     /// All execution stops until a key is pressed, then the value of that key is stored in Vx.
     fn handle_wait_for_keypress(&mut self, x: usize) {
-        if let Some(keycode) = self.keyboard.most_recent_key() {
+        if let Some(keycode) = self.keyboard.wait_for_keypress() {
             self.registers.vx[x] = keycode;
             self.registers.pc += 2;
         }
@@ -786,11 +786,25 @@ mod tests {
     #[test_case(0x3, None, 0x200, 0; "LD Vx, K: not pressed")]
     #[test_case(0xE, Some(0xA),  0x202, 0xA; "LD Vx, K: pressed")]
     fn test_handle_wait_for_keypress(x: u8, key: Option<u8>, pc: u16, vx: u8) {
-        let rom: &[u8] = &[0xF0 | x, 0x0A];
+        let rom: &[u8] = &[0xF0 | x, 0x0A, 0xF0 | x, 0x0A];
         let mut interpreter = Interpreter::with_rom(rom);
 
+        // Press before waiting, should not complete the wait
         if let Some(keycode) = key {
-            interpreter.keyboard_mut().press_key(keycode)
+            interpreter.keyboard_mut().press_key(keycode);
+            interpreter.keyboard_mut().release_key(keycode);
+        }
+
+        // Wait for keypress
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.pc, 0x200);
+        assert_eq!(interpreter.registers.vx[x as usize], 0);
+
+        // If we press now, then it should complete
+        if let Some(keycode) = key {
+            interpreter.keyboard_mut().press_key(keycode);
+            interpreter.keyboard_mut().release_key(keycode);
         }
 
         interpreter.step();

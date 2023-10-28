@@ -1,15 +1,20 @@
-use std::fmt::{format, Display};
+#[derive(PartialEq, Debug)]
+enum WaitingState {
+    Waiting,
+    Pressed { key: u8 },
+    None,
+}
 
 pub struct Keyboard {
     pressed_keys: [bool; 16],
-    most_recent_key: Option<u8>,
+    waiting_state: WaitingState,
 }
 
 impl Keyboard {
     pub fn new() -> Self {
         Self {
             pressed_keys: [false; 16],
-            most_recent_key: None,
+            waiting_state: WaitingState::None,
         }
     }
 
@@ -19,29 +24,33 @@ impl Keyboard {
 
     pub fn press_key(&mut self, key: u8) {
         self.pressed_keys[key as usize] = true;
-
-        self.most_recent_key = Some(key)
     }
 
     pub fn release_key(&mut self, key: u8) {
         self.pressed_keys[key as usize] = false;
-        self.most_recent_key = None;
+
+        if self.waiting_state == WaitingState::Waiting {
+            self.waiting_state = WaitingState::Pressed { key };
+        }
     }
 
-    pub fn most_recent_key(&self) -> Option<u8> {
-        self.most_recent_key
-    }
-}
-
-impl Display for Keyboard {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.pressed_keys.map(|k| if k { "o" } else { " " }).join(""))
+    pub fn wait_for_keypress(&mut self) -> Option<u8> {
+        if self.waiting_state == WaitingState::None {
+            self.waiting_state = WaitingState::Waiting;
+            None
+        } else if let WaitingState::Pressed { key } = self.waiting_state {
+            self.waiting_state = WaitingState::None;
+            Some(key)
+        } else {
+            None
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use claim;
 
     #[test]
     fn test_is_pressed() {
@@ -61,7 +70,6 @@ mod tests {
         keyboard.press_key(key);
 
         assert!(keyboard.pressed_keys[key as usize]);
-        assert_eq!(keyboard.most_recent_key, Some(key));
     }
 
     #[test]
@@ -70,11 +78,42 @@ mod tests {
 
         let key: u8 = 0xE;
         keyboard.pressed_keys[key as usize] = true;
-        keyboard.most_recent_key = Some(key);
 
         keyboard.release_key(key);
 
         assert!(!keyboard.pressed_keys[key as usize]);
-        assert_eq!(keyboard.most_recent_key, None);
+    }
+
+    #[test]
+    fn test_waiting() {
+        let key = 0x8;
+
+        let mut keyboard = Keyboard::new();
+        assert_eq!(keyboard.waiting_state, WaitingState::None);
+
+        keyboard.press_key(key);
+        assert_eq!(keyboard.waiting_state, WaitingState::None);
+        keyboard.release_key(key);
+
+        // Start waiting
+        assert_eq!(keyboard.wait_for_keypress(), None);
+        assert_eq!(keyboard.waiting_state, WaitingState::Waiting);
+
+        // Still waiting
+        assert_eq!(keyboard.wait_for_keypress(), None);
+        assert_eq!(keyboard.waiting_state, WaitingState::Waiting);
+
+        // Pressing but not released, thus still waiting
+        keyboard.press_key(key);
+        assert_eq!(keyboard.wait_for_keypress(), None);
+        assert_eq!(keyboard.waiting_state, WaitingState::Waiting);
+
+        // Releasing, stop waiting
+        keyboard.release_key(key);
+        assert_eq!(keyboard.waiting_state, WaitingState::Pressed { key });
+        assert_eq!(keyboard.wait_for_keypress(), Some(key));
+
+        // Stop waiting
+        assert_eq!(keyboard.waiting_state, WaitingState::None);
     }
 }
