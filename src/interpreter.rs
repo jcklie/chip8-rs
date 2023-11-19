@@ -104,6 +104,10 @@ impl Interpreter {
                     self.handle_skip_if_not_equal_register(second_nibble as usize, third_nibble as usize)
                 }
                 0xA => self.handle_load_immediate_into_i(bottom_tribble),
+                0xB => {
+                    self.handle_jump_relative(bottom_tribble);
+                    return;
+                }
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
                 0xE if second_byte == 0x9E => self.handle_skip_if_key_pressed(second_nibble as usize),
                 0xE if second_byte == 0xA1 => self.handle_skip_if_key_not_pressed(second_nibble as usize),
@@ -343,6 +347,14 @@ impl Interpreter {
     /// The value of register I is set to nnn.
     fn handle_load_immediate_into_i(&mut self, n: u16) {
         self.registers.i = n;
+    }
+
+    /// Bnnn - JP V0, addr
+    /// Jump to location nnn + V0.
+    ///
+    /// The program counter is set to nnn plus the value of V0.
+    fn handle_jump_relative(&mut self, n: u16) {
+        self.registers.pc = n.wrapping_add(self.registers.vx[0].into());
     }
 
     /// Dxyn - DRW Vx, Vy, nibble
@@ -754,6 +766,17 @@ mod tests {
         interpreter.step();
 
         assert_eq!(interpreter.registers.i, 0x678);
+    }
+
+    #[test]
+    fn test_handle_jump_relative() {
+        let rom: &[u8] = &[0xB6, 0x78];
+        let mut interpreter = Interpreter::with_rom(rom);
+        interpreter.registers.vx[0] = 0x13;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.pc, 0x678 + 0x13);
     }
 
     #[test_case(0x3, 0x5, Some(0x5), 0x204; "SKP Vx: wanted key is pressed")]
