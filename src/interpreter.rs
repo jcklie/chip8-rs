@@ -822,6 +822,17 @@ mod tests {
         assert_eq!(interpreter.registers.vx[x as usize], vx);
     }
 
+    #[test]
+    fn test_load_delay_timer_register() {
+        let rom: &[u8] = &[0xFA, 0x15];
+        let mut interpreter = Interpreter::with_rom(rom);
+        interpreter.registers.vx[0xA] = 23;
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.vx[0xA], 23);
+    }
+
     #[test_case(0x5 , 5, 7, 12; "ADD i, vx: no overflow")]
     #[test_case(0x5 , 0xFA, 0xFFFA, 0xF4; "ADD i, vx: overflow")]
     fn test_handle_add_i_register(x: u8, vx: u8, i: u16, result: u16) {
