@@ -1,5 +1,8 @@
 use std::convert::TryInto;
 
+use rand::prelude::*;
+use rand_chacha::ChaCha8Rng;
+
 use crate::{
     display::Display,
     keyboard::Keyboard,
@@ -12,6 +15,7 @@ pub struct Interpreter {
     memory: Memory,
     display: Display,
     keyboard: Keyboard,
+    rng: ChaCha8Rng
 }
 
 impl Interpreter {
@@ -25,11 +29,13 @@ impl Interpreter {
         let display = Display::new();
         let keyboard = Keyboard::new();
 
+        let rng = ChaCha8Rng::seed_from_u64(09122022);
         Interpreter {
             registers,
             memory,
             display,
             keyboard,
+            rng
         }
     }
 
@@ -108,6 +114,7 @@ impl Interpreter {
                     self.handle_jump_relative(bottom_tribble);
                     return;
                 }
+                0xC => self.handle_random(second_nibble as usize, second_byte),
                 0xD => self.handle_draw_sprite(second_nibble, third_nibble, fourth_nibble),
                 0xE if second_byte == 0x9E => self.handle_skip_if_key_pressed(second_nibble as usize),
                 0xE if second_byte == 0xA1 => self.handle_skip_if_key_not_pressed(second_nibble as usize),
@@ -355,6 +362,15 @@ impl Interpreter {
     /// The program counter is set to nnn plus the value of V0.
     fn handle_jump_relative(&mut self, n: u16) {
         self.registers.pc = n.wrapping_add(self.registers.vx[0].into());
+    }
+
+    /// Cxkk - RND Vx, byte
+    /// Set Vx = random byte AND kk.
+    /// 
+    /// The interpreter generates a random number from 0 to 255, which is then ANDed with the value kk.
+    fn handle_random(&mut self, x: usize, k: u8) {
+        let v =  self.rng.gen_range(0..=255);
+        self.registers.vx[x] = v & k;
     }
 
     /// Dxyn - DRW Vx, Vy, nibble
@@ -777,6 +793,16 @@ mod tests {
         interpreter.step();
 
         assert_eq!(interpreter.registers.pc, 0x678 + 0x13);
+    }
+
+    #[test]
+    fn test_handle_random() {
+        let rom: &[u8] = &[0xC1, 0xFF];
+        let mut interpreter = Interpreter::with_rom(rom);
+
+        interpreter.step();
+
+        assert_ne!(interpreter.registers.vx[1], 0);
     }
 
     #[test_case(0x3, 0x5, Some(0x5), 0x204; "SKP Vx: wanted key is pressed")]
