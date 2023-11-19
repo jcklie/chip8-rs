@@ -482,7 +482,7 @@ impl Interpreter {
     ///
     /// The value of I is set to the location for the hexadecimal sprite corresponding to the value of Vx.
     fn handle_load_digit_sprite_location(&mut self, x: usize) {
-        self.registers.i = (x as u16).wrapping_mul(5);
+        self.registers.i = (self.registers.vx[x] as u16).wrapping_mul(5);
     }
 
     /// Fx1E - ADD I, Vx
@@ -915,9 +915,11 @@ mod tests {
         let rom: &[u8] = &[0xF7, 0x29];
         let mut interpreter = Interpreter::with_rom(rom);
 
+        interpreter.registers.vx[0x7] = 0xA;
+
         interpreter.step();
 
-        assert_eq!(interpreter.registers.i, 0x7 * 5);
+        assert_eq!(interpreter.registers.i, 0xA * 5);
     }
 
     #[test_case(0x5 , 223, 2, 2, 3; "BCD: xyz")]
