@@ -25,7 +25,7 @@ struct Cli {
 fn main() -> std::result::Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
-    let bytes = std::fs::read(cli.rom_path)?;
+    let bytes = std::fs::read(&cli.rom_path)?;
 
     let fps = 500;
 
@@ -59,8 +59,10 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
 
+    let title =format!("chip-8-rs: {:?}", &cli.rom_path.file_stem().unwrap_or_default());
+
     let window = video_subsystem
-        .window("rust-sdl2 demo", width * scale, height * scale)
+        .window(&title, width * scale, height * scale)
         .position_centered()
         .build()?;
 
