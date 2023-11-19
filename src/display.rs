@@ -33,7 +33,7 @@ impl Display {
     }
 
     pub fn compute_idx(&self, x: usize, y: usize) -> usize {
-        y * self.width() + x
+        (y % DISPLAY_HEIGHT) * self.width() + (x % DISPLAY_WIDTH)
     }
 
     pub fn pixels(&self) -> &[bool] {
