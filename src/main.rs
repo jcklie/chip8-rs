@@ -1,11 +1,11 @@
 use std::collections::HashMap;
+use std::error::Error;
 use std::path::PathBuf;
 
 use chip8::sound::SquareWave;
 use clap::Parser;
 
 use chip8::interpreter::Interpreter;
-use chip8::Result;
 
 use sdl2::audio::AudioSpecDesired;
 use sdl2::event::Event;
@@ -22,7 +22,11 @@ struct Cli {
     rom_path: PathBuf,
 }
 
-fn run_rom(bytes: &[u8]) -> Result<()> {
+fn main() -> std::result::Result<(), Box<dyn Error>> {
+    let cli = Cli::parse();
+
+    let bytes = std::fs::read(cli.rom_path)?;
+
     let fps = 500;
 
     let keymap: HashMap<Keycode, u8> = HashMap::from([
@@ -45,28 +49,27 @@ fn run_rom(bytes: &[u8]) -> Result<()> {
         (Keycode::V, 0xF),
     ]);
 
-    let mut interpreter = Interpreter::with_rom(bytes);
+    let mut interpreter = Interpreter::with_rom(&bytes);
 
     let scale = 32;
 
     let width = interpreter.display().width() as u32;
     let height = interpreter.display().height() as u32;
 
-    let sdl_context = sdl2::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
+    let sdl_context = sdl2::init()?;
+    let video_subsystem = sdl_context.video()?;
 
     let window = video_subsystem
         .window("rust-sdl2 demo", width * scale, height * scale)
         .position_centered()
-        .build()
-        .unwrap();
+        .build()?;
 
-    let mut canvas = window.into_canvas().build().unwrap();
+    let mut canvas = window.into_canvas().build()?;
 
-    let mut event_pump = sdl_context.event_pump().unwrap();
+    let mut event_pump = sdl_context.event_pump()?;
 
     // Audio
-    let audio_subsystem = sdl_context.audio().unwrap();
+    let audio_subsystem = sdl_context.audio()?;
 
     let desired_spec = AudioSpecDesired {
         freq: Some(44100),
@@ -74,16 +77,14 @@ fn run_rom(bytes: &[u8]) -> Result<()> {
         samples: None,     // default sample size
     };
 
-    let device = audio_subsystem
-        .open_playback(None, &desired_spec, |spec| {
-            // initialize the audio callback
-            SquareWave {
-                phase_inc: 440.0 / spec.freq as f32,
-                phase: 0.0,
-                volume: 0.05,
-            }
-        })
-        .unwrap();
+    let device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+        // initialize the audio callback
+        SquareWave {
+            phase_inc: 440.0 / spec.freq as f32,
+            phase: 0.0,
+            volume: 0.05,
+        }
+    })?;
 
     loop {
         if interpreter.sound_timer_active() {
@@ -121,7 +122,7 @@ fn run_rom(bytes: &[u8]) -> Result<()> {
 
         // Draw
         canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.set_scale(scale as f32, scale as f32).unwrap();
+        canvas.set_scale(scale as f32, scale as f32)?;
         canvas.clear();
 
         canvas.set_draw_color(Color::RGB(255, 255, 255));
@@ -133,21 +134,11 @@ fn run_rom(bytes: &[u8]) -> Result<()> {
             let y = idx / width;
 
             if *pixel {
-                canvas.draw_point(Point::new(x as i32, y as i32)).unwrap();
+                canvas.draw_point(Point::new(x as i32, y as i32))?;
             }
         }
 
         canvas.present();
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / fps));
     }
-}
-
-fn main() -> Result<()> {
-    let cli = Cli::parse();
-
-    let bytes = std::fs::read(cli.rom_path)?;
-
-    run_rom(&bytes)?;
-
-    Ok(())
 }
