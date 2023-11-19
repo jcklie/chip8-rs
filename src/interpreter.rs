@@ -58,7 +58,7 @@ impl Interpreter {
             self.handle_ret();
         } else {
             match first_nibble {
-                0x1 => {
+                0x0 | 0x1 => {
                     self.handle_jump(bottom_tribble);
                     return;
                 }
