@@ -113,6 +113,7 @@ impl Interpreter {
                     return;
                 }
                 0xF if second_byte == 0x15 => self.handle_load_delay_timer_register(second_nibble as usize),
+                0xF if second_byte == 0x29 => self.handle_load_digit_sprite_location(second_nibble as usize),
                 0xF if second_byte == 0x1E => self.handle_add_i_register(second_nibble as usize),
                 0xF if second_byte == 0x33 => self.handle_load_bcd(second_nibble as usize),
                 0xF if second_byte == 0x55 => self.handle_store_registers_in_memory(second_nibble as usize),
@@ -436,6 +437,14 @@ impl Interpreter {
     /// DT is set equal to the value of Vx.
     fn handle_load_delay_timer_register(&mut self, x: usize) {
         self.registers.delay = self.registers.vx[x]
+    }
+
+    /// Fx29 - LD F, Vx
+    /// Set I = location of sprite for digit Vx.
+    ///
+    /// The value of I is set to the location for the hexadecimal sprite corresponding to the value of Vx.
+    fn handle_load_digit_sprite_location(&mut self, x: usize) {
+        self.registers.i = (x as u16).wrapping_mul(5);
     }
 
     /// Fx1E - ADD I, Vx
@@ -825,6 +834,16 @@ mod tests {
         interpreter.step();
 
         assert_eq!(interpreter.registers.i, result);
+    }
+
+    #[test]
+    fn handle_load_digit_sprite_location() {
+        let rom: &[u8] = &[0xF7, 0x29];
+        let mut interpreter = Interpreter::with_rom(rom);
+
+        interpreter.step();
+
+        assert_eq!(interpreter.registers.i, 0x7 * 5);
     }
 
     #[test_case(0x5 , 223, 2, 2, 3; "BCD: xyz")]
