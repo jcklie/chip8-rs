@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use chip8::sound::SquareWave;
 use clap::Parser;
 
 use chip8::interpreter::Interpreter;
 use chip8::Result;
 
+use sdl2::audio::AudioSpecDesired;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
@@ -63,7 +65,33 @@ fn run_rom(bytes: &[u8]) -> Result<()> {
 
     let mut event_pump = sdl_context.event_pump().unwrap();
 
+    // Audio
+    let audio_subsystem = sdl_context.audio().unwrap();
+
+    let desired_spec = AudioSpecDesired {
+        freq: Some(44100),
+        channels: Some(1), // mono
+        samples: None,     // default sample size
+    };
+
+    let device = audio_subsystem
+        .open_playback(None, &desired_spec, |spec| {
+            // initialize the audio callback
+            SquareWave {
+                phase_inc: 440.0 / spec.freq as f32,
+                phase: 0.0,
+                volume: 0.05,
+            }
+        })
+        .unwrap();
+
     loop {
+        if interpreter.sound_timer_active() {
+            device.resume();
+        } else {
+            device.pause();
+        }
+
         // Input
         for event in event_pump.poll_iter() {
             match event {

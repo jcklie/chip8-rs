@@ -15,7 +15,7 @@ pub struct Interpreter {
     memory: Memory,
     display: Display,
     keyboard: Keyboard,
-    rng: ChaCha8Rng
+    rng: ChaCha8Rng,
 }
 
 impl Interpreter {
@@ -35,12 +35,13 @@ impl Interpreter {
             memory,
             display,
             keyboard,
-            rng
+            rng,
         }
     }
 
     pub fn step(&mut self) {
         self.registers.delay = self.registers.delay.saturating_sub(1);
+        self.registers.sound = self.registers.sound.saturating_sub(1);
 
         let pc = self.registers.pc as usize;
 
@@ -124,6 +125,7 @@ impl Interpreter {
                     return;
                 }
                 0xF if second_byte == 0x15 => self.handle_load_delay_timer_register(second_nibble as usize),
+                0xF if second_byte == 0x18 => self.handle_load_sound_timer_register(second_nibble as usize),
                 0xF if second_byte == 0x29 => self.handle_load_digit_sprite_location(second_nibble as usize),
                 0xF if second_byte == 0x1E => self.handle_add_i_register(second_nibble as usize),
                 0xF if second_byte == 0x33 => self.handle_load_bcd(second_nibble as usize),
@@ -366,10 +368,10 @@ impl Interpreter {
 
     /// Cxkk - RND Vx, byte
     /// Set Vx = random byte AND kk.
-    /// 
+    ///
     /// The interpreter generates a random number from 0 to 255, which is then ANDed with the value kk.
     fn handle_random(&mut self, x: usize, k: u8) {
-        let v =  self.rng.gen_range(0..=255);
+        let v = self.rng.gen_range(0..=255);
         self.registers.vx[x] = v & k;
     }
 
@@ -467,6 +469,14 @@ impl Interpreter {
         self.registers.delay = self.registers.vx[x]
     }
 
+    /// Fx18 - LD ST, Vx
+    /// Set sound timer = Vx.
+    ///
+    /// ST is set equal to the value of Vx.
+    fn handle_load_sound_timer_register(&mut self, x: usize) {
+        self.registers.sound = self.registers.vx[x]
+    }
+
     /// Fx29 - LD F, Vx
     /// Set I = location of sprite for digit Vx.
     ///
@@ -529,6 +539,10 @@ impl Interpreter {
 
     pub fn keyboard_mut(&mut self) -> &mut Keyboard {
         &mut self.keyboard
+    }
+
+    pub fn sound_timer_active(&self) -> bool {
+        self.registers.sound > 0
     }
 }
 
